@@ -295,13 +295,16 @@ def train(args, model):
     logger.info("Total Training Time: \t%f" % ((end_time - start_time) / 3600))
 
 def main():
+    torch.cuda.empty_cache()      #WYH
+    # torch.cuda.set_per_process_memory_fraction(0.9, device=torch.device(f'cuda:{local_rank}'))
+
     parser = argparse.ArgumentParser()
     # Required parameters
     parser.add_argument("--name", required=True,
                         help="Name of this run. Used for monitoring.")
     parser.add_argument("--dataset", choices=["CUB_200_2011", "car", "dog", "nabirds", "INat2017"], default="CUB_200_2011",
                         help="Which dataset.")
-    parser.add_argument('--data_root', type=str, default='/opt/tiger/minist')
+    parser.add_argument('--data_root', type=str, default='./')
     parser.add_argument("--model_type", choices=["ViT-B_16", "ViT-B_32", "ViT-L_16",
                                                  "ViT-L_32", "ViT-H_14"],
                         default="ViT-B_16",
@@ -314,7 +317,7 @@ def main():
                         help="The output directory where checkpoints will be written.")
     parser.add_argument("--img_size", default=448, type=int,
                         help="Resolution size")
-    parser.add_argument("--train_batch_size", default=16, type=int,
+    parser.add_argument("--train_batch_size", default=1, type=int,
                         help="Total batch size for training.")
     parser.add_argument("--eval_batch_size", default=8, type=int,
                         help="Total batch size for eval.")
@@ -335,8 +338,8 @@ def main():
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
                         help="Max gradient norm.")
 
-    parser.add_argument("--local_rank", type=int, default=-1,
-                        help="local_rank for distributed training on gpus")
+    # parser.add_argument("--local_rank", type=int, default=-1,
+    #                     help="local_rank for distributed training on gpus")
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
@@ -358,22 +361,26 @@ def main():
                         help="Split method")
     parser.add_argument('--slide_step', type=int, default=12,
                         help="Slide step for overlap split")
-
+    # parser.add_argument('--local-rank',type=int,default=0,help="local rank for distributed training")  #WYH
     args = parser.parse_args()
 
     # if args.fp16 and args.smoothing_value != 0:
     #     raise NotImplementedError("label smoothing not supported for fp16 training now")
     args.data_root = '{}/{}'.format(args.data_root, args.dataset)
     # Setup CUDA, GPU & distributed training
+    args.local_rank = int(os.environ.get('LOCAL_RANK', -1))     #WYH   不需要手动传输local_rank参数了。
     if args.local_rank == -1:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
+        print(args.n_gpu)
+        breakpoint()
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         torch.distributed.init_process_group(backend='nccl',
                                              timeout=timedelta(minutes=60))
         args.n_gpu = 1
+    
     args.device = device
     args.nprocs = torch.cuda.device_count()
 
